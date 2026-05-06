@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NutriSync — AI-Powered Smart Nutrition</title>
+    <meta name="description" content="NutriSync uses Google Gemini AI to analyze meals, suggest macro-friendly alternatives, and generate smart shopping lists.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- Ambient Background Blobs -->
+    <div class="ambient-bg" aria-hidden="true">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <!-- ==================== VIEW: LOGIN (FIREBASE) ==================== -->
+    <section class="view active" id="view-login">
+        <div class="view-scroll" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;">
+            <div class="card glass text-center" style="max-width: 400px; padding: 40px 24px;">
+                <span class="logo-icon" style="font-size: 3rem; margin-bottom: 20px; display: block;">⚡</span>
+                <h1 style="font-size: 2rem; margin-bottom: 10px;">NutriSync</h1>
+                <p class="tagline" style="margin-bottom: 30px;">Sign in to access your cloud-synced nutrition dashboard.</p>
+                <button type="button" id="login-btn" class="btn btn-primary btn-lg">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;"><path d="M22 12a10 10 0 1 0-10 10 10 10 0 0 0 10-10z"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+                    Sign in with Google
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== VIEW: DASHBOARD ==================== -->
+    <section class="view" id="view-dashboard">
+        <div class="view-scroll">
+            <header class="page-header">
+                <div class="logo-group">
+                    <span class="logo-icon">⚡</span>
+                    <h1>NutriSync</h1>
+                </div>
+                <p class="tagline">AI-Powered Smart Nutrition</p>
+            </header>
+
+            <div class="card glass hero-card">
+                <h2>Today's Progress</h2>
+                <div class="macro-ring-row">
+                    <div class="ring-container">
+                        <svg class="ring" viewBox="0 0 120 120">
+                            <circle class="ring-bg" cx="60" cy="60" r="52"/>
+                            <circle class="ring-fill ring-protein" id="ring-protein" cx="60" cy="60" r="52" style="--progress:0"/>
+                        </svg>
+                        <div class="ring-label">
+                            <span class="ring-value" id="dash-protein">0</span>
+                            <span class="ring-unit">g Protein</span>
+                        </div>
+                    </div>
+                    <div class="ring-container">
+                        <svg class="ring" viewBox="0 0 120 120">
+                            <circle class="ring-bg" cx="60" cy="60" r="52"/>
+                            <circle class="ring-fill ring-carbs" id="ring-carbs" cx="60" cy="60" r="52" style="--progress:0"/>
+                        </svg>
+                        <div class="ring-label">
+                            <span class="ring-value" id="dash-carbs">0</span>
+                            <span class="ring-unit">g Carbs</span>
+                        </div>
+                    </div>
+                    <div class="ring-container">
+                        <svg class="ring" viewBox="0 0 120 120">
+                            <circle class="ring-bg" cx="60" cy="60" r="52"/>
+                            <circle class="ring-fill ring-fats" id="ring-fats" cx="60" cy="60" r="52" style="--progress:0"/>
+                        </svg>
+                        <div class="ring-label">
+                            <span class="ring-value" id="dash-fats">0</span>
+                            <span class="ring-unit">g Fats</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="calorie-strip glass-inner">
+                    <span>🔥 Total Calories</span>
+                    <strong id="dash-calories">0</strong>
+                </div>
+                <button type="button" id="reset-btn" class="btn btn-ghost btn-sm">Reset Day</button>
+            </div>
+
+            <div class="card glass">
+                <h2>🏆 NutriScore</h2>
+                <div class="nutriscore-container">
+                    <svg class="gauge" viewBox="0 0 200 120">
+                        <defs>
+                            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#ef4444"/>
+                                <stop offset="25%" stop-color="#f59e0b"/>
+                                <stop offset="50%" stop-color="#eab308"/>
+                                <stop offset="75%" stop-color="#22c55e"/>
+                                <stop offset="100%" stop-color="#10b981"/>
+                            </linearGradient>
+                        </defs>
+                        <path class="gauge-bg" d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="12" stroke-linecap="round"/>
+                        <path class="gauge-fill" id="gauge-fill" d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="url(#gaugeGrad)" stroke-width="12" stroke-linecap="round" stroke-dasharray="251.3" stroke-dashoffset="251.3"/>
+                    </svg>
+                    <div class="gauge-label">
+                        <span class="gauge-grade" id="gauge-grade">—</span>
+                        <span class="gauge-desc" id="gauge-desc">Log meals to see your score</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <h2>Logged Meals</h2>
+                <div id="meal-history-list" class="history-list">
+                    <p class="empty-hint">No meals logged yet. Start tracking!</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== VIEW: LOGGER ==================== -->
+    <section class="view" id="view-logger">
+        <div class="view-scroll">
+            <header class="page-header">
+                <h1>Log Meal</h1>
+                <p class="tagline">Describe or photograph your food</p>
+            </header>
+
+            <form id="meal-form" class="card glass" aria-describedby="form-error">
+                <div class="form-group">
+                    <label for="goal-select">🎯 Your Goal</label>
+                    <select id="goal-select" name="goal-select">
+                        <option value="balanced">Balanced / Maintenance</option>
+                        <option value="muscle">💪 Muscle Gain</option>
+                        <option value="fatloss">🔥 Fat Loss</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="meal-input">What did you eat?</label>
+                    <div class="input-row">
+                        <input type="text" id="meal-input" name="meal-input" placeholder="e.g., A bowl of chicken pasta" autocomplete="off">
+                        <button type="button" id="voice-btn" class="btn btn-icon" aria-label="Use voice dictation" title="Dictate meal">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="meal-image" class="file-drop-zone" id="drop-zone">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                        <span>Drop meal photo or click to upload</span>
+                        <input type="file" id="meal-image" name="meal-image" accept="image/*">
+                    </label>
+                    <div id="image-preview" class="image-preview hidden"></div>
+                </div>
+
+                <div id="form-error" class="error-message" role="alert" aria-live="assertive"></div>
+
+                <button type="submit" id="submit-btn" class="btn btn-primary btn-lg">
+                    <span class="btn-text">Analyze & Get Alternatives</span>
+                    <span class="btn-loader hidden">
+                        <span class="spinner"></span> Analyzing...
+                    </span>
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <!-- ==================== VIEW: RESULTS ==================== -->
+    <section class="view" id="view-results">
+        <div class="view-scroll">
+            <header class="page-header">
+                <h1>Smart Alternatives</h1>
+                <p class="tagline" id="results-tagline">AI-curated meals for your goals</p>
+            </header>
+
+            <div id="loading-indicator" class="loading-skeleton hidden" aria-live="polite">
+                <div class="skeleton-card glass"></div>
+                <div class="skeleton-card glass"></div>
+                <div class="skeleton-card glass"></div>
+            </div>
+
+            <div id="results-container" aria-live="polite">
+                <div class="card glass empty-card">
+                    <p class="empty-hint">Submit a meal to see alternatives.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== VIEW: SHOPPING LIST ==================== -->
+    <section class="view" id="view-shopping">
+        <div class="view-scroll">
+            <header class="page-header">
+                <h1>Shopping List</h1>
+                <p class="tagline">Auto-generated from your logged meals</p>
+            </header>
+
+            <div class="card glass">
+                <button type="button" id="generate-list-btn" class="btn btn-secondary btn-lg">
+                    <span class="btn-text">🛒 Generate Grocery List</span>
+                    <span class="btn-loader hidden">
+                        <span class="spinner"></span> Generating...
+                    </span>
+                </button>
+                <div id="shopping-list-output" class="shopping-output" aria-live="polite">
+                    <p class="empty-hint">Log some meals first, then generate your list here.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== VIEW: MEAL PLANNER ==================== -->
+    <section class="view" id="view-planner">
+        <div class="view-scroll">
+            <header class="page-header">
+                <h1>AI Meal Planner</h1>
+                <p class="tagline">Generate a full-day meal plan with AI</p>
+            </header>
+
+            <div class="card glass">
+                <div class="form-group">
+                    <label for="planner-goal">🎯 Plan Goal</label>
+                    <select id="planner-goal">
+                        <option value="balanced">Balanced / Maintenance</option>
+                        <option value="muscle">💪 Muscle Gain</option>
+                        <option value="fatloss">🔥 Fat Loss</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="planner-calories">🔥 Target Calories</label>
+                    <input type="number" id="planner-calories" placeholder="e.g., 2000" value="2000" min="1200" max="5000" style="width:100%;padding:14px 16px;border:1px solid rgba(255,255,255,0.08);border-radius:10px;background:rgba(255,255,255,0.04);color:#f0f0f5;font-size:1rem;font-family:inherit;">
+                </div>
+                <button type="button" id="generate-plan-btn" class="btn btn-primary btn-lg">
+                    <span class="btn-text">🧠 Generate Day Plan</span>
+                    <span class="btn-loader hidden">
+                        <span class="spinner"></span> Creating plan...
+                    </span>
+                </button>
+            </div>
+
+            <div id="plan-output" aria-live="polite">
+                <div class="card glass empty-card">
+                    <p class="empty-hint">Set your goal and calories, then generate a plan.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==================== BOTTOM NAVIGATION ==================== -->
+    <nav class="bottom-nav glass" aria-label="Main navigation">
+        <button class="nav-item active" data-view="view-dashboard" aria-label="Dashboard">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+            <span>Home</span>
+        </button>
+        <button class="nav-item" data-view="view-logger" aria-label="Log Meal">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            <span>Log</span>
+        </button>
+        <button class="nav-item" data-view="view-results" aria-label="Results">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+            <span>AI</span>
+        </button>
+        <button class="nav-item" data-view="view-planner" aria-label="Meal Planner">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+            <span>Plan</span>
+        </button>
+        <button class="nav-item" data-view="view-shopping" aria-label="Shopping List">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+            <span>Cart</span>
+        </button>
+    </nav>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,7 +1,17 @@
+/**
+ * @fileoverview NutriSync Express Server
+ * @description Production-grade Node.js server with enterprise security,
+ *              rate limiting, input sanitization, and structured error handling.
+ * @version 2.0.0
+ * @license MIT
+ */
+
+'use strict';
+
 const dotenv = require('dotenv');
 const path = require('path');
 
-// Load environment variables immediately at the very top
+// Load environment variables BEFORE any module reads them
 dotenv.config({ path: path.join(__dirname, '.env'), override: true });
 
 const express = require('express');
@@ -9,57 +19,72 @@ const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const foodRoutes = require('./routes/food');
+
 const app = express();
 
-/**
- * Apply security and utility middlewares
- */
+// ─── Security Middleware ────────────────────────────────────────────────────
 app.use(helmet({
-    contentSecurityPolicy: false // Allow inline styles for our premium UI
+    contentSecurityPolicy: false, // Relaxed for Firebase CDN scripts
+    crossOriginEmbedderPolicy: false
 }));
-app.use(cors());
-app.use(express.json({ limit: '10mb' })); // Allow large base64 image uploads
 
-/**
- * Serve static frontend files from the current directory
- */
-app.use(express.static(path.join(__dirname, './')));
+app.use(cors({
+    origin: process.env.NODE_ENV === 'production'
+        ? ['https://nutrisync-257323972871.us-central1.run.app']
+        : '*',
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type']
+}));
 
-/**
- * Rate Limiting to prevent abuse
- */
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per windowMs
-    message: 'Too many requests from this IP, please try again later.',
+// ─── Body Parsing ───────────────────────────────────────────────────────────
+app.use(express.json({ limit: '10mb' }));     // Support base64 image uploads
+app.use(express.urlencoded({ extended: false }));
+
+// ─── Static Assets ──────────────────────────────────────────────────────────
+app.use(express.static(path.join(__dirname, './'), {
+    maxAge: '1h',
+    etag: true
+}));
+
+// ─── Rate Limiting ──────────────────────────────────────────────────────────
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,  // 15-minute window
+    max: 100,                   // 100 requests per window per IP
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
+    message: { success: false, error: 'Rate limit exceeded. Please try again later.' }
 });
-app.use(limiter);
+app.use('/api/', apiLimiter);
 
-/**
- * Mount Routes
- */
+// ─── API Routes ─────────────────────────────────────────────────────────────
 app.use('/api/food', foodRoutes);
 
-/**
- * Global Error Handler Middleware
- * @param {Error} err - The error object
- * @param {import('express').Request} req - The request object
- * @param {import('express').Response} res - The response object
- * @param {import('express').NextFunction} next - The next middleware function
- */
-app.use((err, req, res, next) => {
-    console.error(`[Error]: ${err.message}`);
-    const status = err.status || 500;
-    res.status(status).json({
-        success: false,
-        error: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message
+// ─── Health Check ───────────────────────────────────────────────────────────
+app.get('/api/health', (_req, res) => {
+    res.status(200).json({
+        status: 'healthy',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
     });
 });
 
-const PORT = process.env.PORT || 3000;
+// ─── Global Error Handler ───────────────────────────────────────────────────
+app.use((err, _req, res, _next) => {
+    console.error(`[Error ${new Date().toISOString()}]: ${err.message}`);
+    const status = err.status || 500;
+    res.status(status).json({
+        success: false,
+        error: process.env.NODE_ENV === 'production'
+            ? 'Internal Server Error'
+            : err.message
+    });
+});
+
+// ─── Server Bootstrap ───────────────────────────────────────────────────────
+const PORT = parseInt(process.env.PORT, 10) || 3000;
 
 app.listen(PORT, () => {
-    console.log(`NutriSync server is running on port ${PORT}`);
+    console.log(`✅ NutriSync server running on port ${PORT}`);
+    console.log(`🔒 Security: Helmet, CORS, Rate Limiting active`);
+    console.log(`🤖 AI Engine: Groq (Llama 3.3 70B)`);
 });

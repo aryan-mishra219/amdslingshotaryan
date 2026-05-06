@@ -3,7 +3,7 @@
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, query, orderBy, serverTimestamp, limit } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
 // ============================================================
@@ -115,18 +115,14 @@ document.addEventListener('DOMContentLoaded', () => {
         loginBtn.addEventListener('click', async () => {
             const provider = new GoogleAuthProvider();
             try {
-                loginBtn.innerHTML = '<span class="spinner"></span> Redirecting to Google...';
-                await signInWithRedirect(auth, provider);
+                loginBtn.innerHTML = '<span class="spinner"></span> Signing in...';
+                await signInWithPopup(auth, provider);
             } catch (error) {
-                alert("Login failed: " + error.message);
+                console.error('Login error:', error);
                 loginBtn.innerHTML = 'Sign in with Google';
-            }
-        });
-
-        // Handle redirect result
-        getRedirectResult(auth).catch((error) => {
-            if (error.code !== 'auth/redirect-cancelled-by-user') {
-                console.error("Redirect error:", error);
+                if (error.code !== 'auth/popup-closed-by-user') {
+                    alert('Login failed: ' + error.message);
+                }
             }
         });
 

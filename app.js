@@ -88,23 +88,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const plannerCalories = document.getElementById('planner-calories');
 
     let base64Image = null;
+    let isGuestMode = false;
+    const guestBtn = document.getElementById('guest-btn');
+    const HISTORY_KEY = 'nutrisync_guest_history';
+
+    /**
+     * Activates the main app UI (hides login, shows dashboard + nav).
+     */
+    const enterApp = () => {
+        viewLogin.classList.remove('active');
+        viewDashboard.classList.add('active');
+        document.querySelector('.nav-item[data-view="view-dashboard"]').classList.add('active');
+        bottomNav.style.display = 'flex';
+        refreshDashboard();
+    };
 
     // ============================================================
-    // FIREBASE AUTHENTICATION
+    // FIREBASE AUTHENTICATION + GUEST MODE
     // ============================================================
+    bottomNav.style.display = 'none'; // Hide nav until logged in
+
     if (isFirebaseReady) {
-        bottomNav.style.display = 'none'; // Hide nav until logged in
-
         onAuthStateChanged(auth, (user) => {
-            if (user) {
+            if (user && !isGuestMode) {
                 currentUser = user;
-                viewLogin.classList.remove('active');
-                viewDashboard.classList.add('active');
-                document.querySelector('.nav-item[data-view="view-dashboard"]').classList.add('active');
-                bottomNav.style.display = 'flex';
-                resetBtn.textContent = 'Sign Out'; // Repurpose reset button for sign out
-                refreshDashboard();
-            } else {
+                resetBtn.textContent = 'Sign Out';
+                enterApp();
+            } else if (!isGuestMode) {
                 currentUser = null;
                 viewLogin.classList.add('active');
                 views.forEach(v => { if(v.id !== 'view-login') v.classList.remove('active') });
@@ -127,23 +137,42 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         resetBtn.addEventListener('click', () => {
-            if (confirm("Are you sure you want to sign out?")) {
-                signOut(auth);
+            if (isGuestMode) {
+                if (confirm('Clear guest data and go back to login?')) {
+                    localStorage.removeItem(HISTORY_KEY);
+                    isGuestMode = false;
+                    location.reload();
+                }
+            } else {
+                if (confirm("Sign out?")) signOut(auth);
             }
         });
     } else {
-        // Fallback if user hasn't added config yet
         loginBtn.addEventListener('click', () => {
             alert("⚠️ Please add your Firebase Config to line 11 in app.js first!");
         });
+        resetBtn.addEventListener('click', () => {
+            if (confirm('Clear guest data?')) {
+                localStorage.removeItem(HISTORY_KEY);
+                refreshDashboard();
+            }
+        });
     }
+
+    // Guest mode — works everywhere, no Firebase needed
+    guestBtn.addEventListener('click', () => {
+        isGuestMode = true;
+        currentUser = null;
+        resetBtn.textContent = 'Reset Day';
+        enterApp();
+    });
 
 
     // ============================================================
     // SPA ROUTER
     // ============================================================
     const navigateTo = (viewId) => {
-        if (!currentUser && isFirebaseReady) return; // Prevent navigation if not logged in
+        if (!isGuestMode && !currentUser && isFirebaseReady) return; // Prevent navigation if not logged in
         views.forEach(v => v.classList.remove('active'));
         navItems.forEach(n => n.classList.remove('active'));
 
@@ -164,89 +193,91 @@ document.addEventListener('DOMContentLoaded', () => {
     const GOALS = { protein: 150, carbs: 250, fats: 70 };
 
     const refreshDashboard = async () => {
-        if (!isFirebaseReady || !currentUser) return;
+        let history = [];
 
-        try {
-            const mealsRef = collection(db, "users", currentUser.uid, "meals");
-            // Get last 20 meals for the dashboard
-            const q = query(mealsRef, orderBy("timestamp", "desc"), limit(20));
-            const snapshot = await getDocs(q);
-            
-            const history = [];
-            let totalP = 0, totalC = 0, totalF = 0, totalCal = 0;
-
-            snapshot.forEach((doc) => {
-                const m = doc.data();
-                history.push(m);
-                totalP += (m.protein_g || 0);
-                totalC += (m.carbs_g || 0);
-                totalF += (m.fats_g || 0);
-                totalCal += (m.calories || 0);
-            });
-
-            // Update ring progress (clamped 0–1)
-            ringProtein.style.setProperty('--progress', Math.min(totalP / GOALS.protein, 1));
-            ringCarbs.style.setProperty('--progress', Math.min(totalC / GOALS.carbs, 1));
-            ringFats.style.setProperty('--progress', Math.min(totalF / GOALS.fats, 1));
-
-            dashProtein.textContent = totalP;
-            dashCarbs.textContent = totalC;
-            dashFats.textContent = totalF;
-            dashCalories.textContent = totalCal;
-
-            // Render history list
-            if (history.length === 0) {
-                mealHistoryList.innerHTML = '<p class="empty-hint">No meals logged yet. Start tracking!</p>';
-            } else {
-                const fragment = document.createDocumentFragment();
-                history.forEach(m => {
-                    const div = document.createElement('div');
-                    div.className = 'history-item';
-                    div.innerHTML = `
-                        <span class="history-item-name">${m.name}</span>
-                        <span class="history-item-macros">
-                            <span>${m.calories} kcal</span>
-                            <span>${m.protein_g}g P</span>
-                        </span>
-                    `;
-                    fragment.appendChild(div);
-                });
-                mealHistoryList.innerHTML = '';
-                mealHistoryList.appendChild(fragment);
+        if (isGuestMode || !isFirebaseReady || !currentUser) {
+            // GUEST MODE: use localStorage
+            history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        } else {
+            // FIREBASE MODE: use Firestore
+            try {
+                const mealsRef = collection(db, "users", currentUser.uid, "meals");
+                const q = query(mealsRef, orderBy("timestamp", "desc"), limit(20));
+                const snapshot = await getDocs(q);
+                snapshot.forEach((doc) => history.push(doc.data()));
+            } catch (error) {
+                console.error("Error loading from Firestore:", error);
+                history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
             }
-
-            // Update NutriScore gauge
-            updateNutriScore(totalP, totalC, totalF, totalCal, GOALS);
-        } catch (error) {
-            console.error("Error loading dashboard:", error);
         }
+
+        let totalP = 0, totalC = 0, totalF = 0, totalCal = 0;
+        history.forEach(m => {
+            totalP += (m.protein_g || 0);
+            totalC += (m.carbs_g || 0);
+            totalF += (m.fats_g || 0);
+            totalCal += (m.calories || 0);
+        });
+
+        ringProtein.style.setProperty('--progress', Math.min(totalP / GOALS.protein, 1));
+        ringCarbs.style.setProperty('--progress', Math.min(totalC / GOALS.carbs, 1));
+        ringFats.style.setProperty('--progress', Math.min(totalF / GOALS.fats, 1));
+
+        dashProtein.textContent = totalP;
+        dashCarbs.textContent = totalC;
+        dashFats.textContent = totalF;
+        dashCalories.textContent = totalCal;
+
+        if (history.length === 0) {
+            mealHistoryList.innerHTML = '<p class="empty-hint">No meals logged yet. Start tracking!</p>';
+        } else {
+            const fragment = document.createDocumentFragment();
+            history.forEach(m => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.innerHTML = `
+                    <span class="history-item-name">${m.name}</span>
+                    <span class="history-item-macros">
+                        <span>${m.calories} kcal</span>
+                        <span>${m.protein_g}g P</span>
+                    </span>
+                `;
+                fragment.appendChild(div);
+            });
+            mealHistoryList.innerHTML = '';
+            mealHistoryList.appendChild(fragment);
+        }
+
+        updateNutriScore(totalP, totalC, totalF, totalCal, GOALS);
     };
 
     const logMeal = async (meal) => {
-        if (!isFirebaseReady || !currentUser) {
-            alert("Cannot log meal: You must sign in and configure Firebase.");
-            return;
+        if (!isGuestMode && isFirebaseReady && currentUser) {
+            // FIREBASE MODE
+            try {
+                await addDoc(collection(db, "users", currentUser.uid, "meals"), {
+                    name: meal.name,
+                    calories: meal.calories,
+                    protein_g: meal.protein_g,
+                    carbs_g: meal.carbs_g,
+                    fats_g: meal.fats_g,
+                    timestamp: serverTimestamp()
+                });
+            } catch (error) {
+                console.error("Firestore save failed, using localStorage:", error);
+            }
         }
 
-        try {
-            await addDoc(collection(db, "users", currentUser.uid, "meals"), {
-                name: meal.name,
-                calories: meal.calories,
-                protein_g: meal.protein_g,
-                carbs_g: meal.carbs_g,
-                fats_g: meal.fats_g,
-                timestamp: serverTimestamp()
-            });
-            refreshDashboard();
+        // Always also save to localStorage as backup
+        const local = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        local.push({ name: meal.name, calories: meal.calories, protein_g: meal.protein_g, carbs_g: meal.carbs_g, fats_g: meal.fats_g });
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(local));
 
-            // Flash the dashboard nav to indicate success
-            const dashNav = document.querySelector('[data-view="view-dashboard"]');
-            dashNav.style.color = 'var(--secondary)';
-            setTimeout(() => { dashNav.style.color = ''; }, 800);
-        } catch (error) {
-            console.error("Error saving meal:", error);
-            alert("Failed to save meal to cloud.");
-        }
+        refreshDashboard();
+
+        const dashNav = document.querySelector('[data-view="view-dashboard"]');
+        dashNav.style.color = 'var(--secondary)';
+        setTimeout(() => { dashNav.style.color = ''; }, 800);
     };
 
     // ============================================================
@@ -399,20 +430,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // SHOPPING LIST GENERATOR (Using Cloud Data)
     // ============================================================
     generateListBtn.addEventListener('click', async () => {
-        if (!isFirebaseReady || !currentUser) return;
-
         generateListBtn.querySelector('.btn-text').classList.add('hidden');
         generateListBtn.querySelector('.btn-loader').classList.remove('hidden');
         generateListBtn.disabled = true;
         shoppingListOutput.innerHTML = '';
 
         try {
-            // Fetch history from firestore
-            const mealsRef = collection(db, "users", currentUser.uid, "meals");
-            const q = query(mealsRef, orderBy("timestamp", "desc"), limit(20));
-            const snapshot = await getDocs(q);
-            const history = [];
-            snapshot.forEach(doc => history.push(doc.data()));
+            let history = [];
+            if (!isGuestMode && isFirebaseReady && currentUser) {
+                const mealsRef = collection(db, "users", currentUser.uid, "meals");
+                const q = query(mealsRef, orderBy("timestamp", "desc"), limit(20));
+                const snapshot = await getDocs(q);
+                snapshot.forEach(doc => history.push(doc.data()));
+            } else {
+                history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+            }
 
             if (history.length === 0) {
                 shoppingListOutput.innerHTML = '<p class="empty-hint">Log some meals first.</p>';
